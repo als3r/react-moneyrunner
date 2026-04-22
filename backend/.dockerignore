@@ -1,0 +1,16 @@
+/vendor
+/node_modules
+/.idea
+/.vscode
+/.git
+/storage/*.key
+/storage/logs/*
+/bootstrap/cache/*
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
