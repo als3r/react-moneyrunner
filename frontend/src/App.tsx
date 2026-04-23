@@ -18,6 +18,8 @@ import Blank from "./pages/Blank";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import Home from "./pages/Dashboard/Home";
+import Transactions from "./pages/Transactions";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 export default function App() {
   return (
@@ -25,9 +27,18 @@ export default function App() {
       <Router>
         <ScrollToTop />
         <Routes>
-          {/* Dashboard Layout */}
-          <Route element={<AppLayout />}>
-            <Route index path="/" element={<Home />} />
+          {/* Auth Layout */}
+          <Route path="/sign-in" element={<SignIn />} />
+          <Route path="/signin" element={<SignIn />} />
+          <Route path="/signup" element={<SignUp />} />
+
+          {/* Dashboard Layout - Protected */}
+          <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+            <Route index element={<Home />} />
+            <Route path="dashboard" element={<Home />} />
+
+            {/* Transactions */}
+            <Route path="transactions" element={<Transactions />} />
 
             {/* Others Page */}
             <Route path="/profile" element={<UserProfiles />} />
@@ -52,10 +63,6 @@ export default function App() {
             <Route path="/line-chart" element={<LineChart />} />
             <Route path="/bar-chart" element={<BarChart />} />
           </Route>
-
-          {/* Auth Layout */}
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/signup" element={<SignUp />} />
 
           {/* Fallback Route */}
           <Route path="*" element={<NotFound />} />
