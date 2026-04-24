@@ -21,6 +21,8 @@ import Home from "./pages/Dashboard/Home";
 import Transactions from "./pages/Transactions";
 import Categories from "./pages/Categories";
 import Tags from "./pages/Tags";
+import Accounts from "./pages/Accounts";
+import Currencies from "./pages/Currencies";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 export default function App() {
@@ -45,6 +47,10 @@ export default function App() {
             {/* Categories and Tags */}
             <Route path="categories" element={<Categories />} />
             <Route path="tags" element={<Tags />} />
+
+            {/* Accounts and Currencies */}
+            <Route path="accounts" element={<Accounts />} />
+            <Route path="currencies" element={<Currencies />} />
 
             {/* Others Page */}
             <Route path="/profile" element={<UserProfiles />} />

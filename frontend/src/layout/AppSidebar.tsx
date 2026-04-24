@@ -42,6 +42,16 @@ const navItems: NavItem[] = [
     path: "/tags",
   },
   {
+    icon: <BoxCubeIcon />,
+    name: "Accounts",
+    path: "/accounts",
+  },
+  {
+    icon: <PlugInIcon />,
+    name: "Currencies",
+    path: "/currencies",
+  },
+  {
     icon: <GridIcon />,
     name: "Dashboard",
     subItems: [{ name: "Ecommerce", path: "/", pro: false }],

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -6,66 +6,33 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import Badge from "../components/ui/badge/Badge";
 import PageMeta from "../components/common/PageMeta";
-import { tagService, Tag, TagFilters } from "../services/tagService";
+import { currencyService, Currency } from "../services/currencyService";
 
-interface DisplayTag {
+interface DisplayCurrency {
   id: number;
+  code: string;
   name: string;
-  color: string;
+  symbol: string;
   createdAt: string;
 }
 
-const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 500];
-
-export default function Tags() {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(50);
-  const [tags, setTags] = useState<DisplayTag[]>([]);
-  const [totalPages, setTotalPages] = useState(1);
+export default function Currencies() {
+  const [currencies, setCurrencies] = useState<DisplayCurrency[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
+    code: '',
     name: '',
-    color: '#6366f1',
+    symbol: '',
   });
 
-  const fetchTags = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const filters: TagFilters = {
-        page: currentPage,
-        per_page: itemsPerPage,
-      };
-
-      const response = await tagService.getAll(filters);
-      
-      const displayData: DisplayTag[] = response.data.map((t: Tag) => ({
-        id: t.id,
-        name: t.name,
-        color: t.color || 'gray',
-        createdAt: new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-      }));
-      
-      setTags(displayData);
-      setTotalPages(response.meta.last_page);
-    } catch (err) {
-      setError('Failed to load tags');
-      console.error('Error fetching tags:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, itemsPerPage]);
-
   useEffect(() => {
-    fetchTags();
-  }, [currentPage, itemsPerPage]);
+    fetchCurrencies();
+  }, []);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -78,31 +45,45 @@ export default function Tags() {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isModalOpen]);
 
-  const currentData = tags;
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const handleItemsPerPageChange = (size: number) => {
-    setItemsPerPage(size);
-    setCurrentPage(1);
+  const fetchCurrencies = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await currencyService.getAll();
+      
+      const displayData: DisplayCurrency[] = data.map((c: Currency) => ({
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        symbol: c.symbol,
+        createdAt: new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      }));
+      
+      setCurrencies(displayData);
+    } catch (err) {
+      console.error('Error fetching currencies:', err);
+      setError('Failed to load currencies');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOpenModal = () => {
     setEditingId(null);
     setFormData({
+      code: '',
       name: '',
-      color: '#6366f1',
+      symbol: '',
     });
     setIsModalOpen(true);
   };
 
-  const handleEditTag = (tag: DisplayTag) => {
-    setEditingId(tag.id);
+  const handleEditCurrency = (currency: DisplayCurrency) => {
+    setEditingId(currency.id);
     setFormData({
-      name: tag.name,
-      color: tag.color,
+      code: currency.code,
+      name: currency.name,
+      symbol: currency.symbol,
     });
     setIsModalOpen(true);
   };
@@ -111,8 +92,9 @@ export default function Tags() {
     setIsModalOpen(false);
     setEditingId(null);
     setFormData({
+      code: '',
       name: '',
-      color: '#6366f1',
+      symbol: '',
     });
   };
 
@@ -121,16 +103,16 @@ export default function Tags() {
     try {
       setIsSubmitting(true);
       if (editingId) {
-        await tagService.update(editingId, formData);
+        await currencyService.update(editingId, formData);
       } else {
-        await tagService.create(formData);
+        await currencyService.create(formData);
       }
       setIsSubmitting(false);
       handleCloseModal();
-      fetchTags();
+      fetchCurrencies();
     } catch (err) {
-      console.error('Error saving tag:', err);
-      alert('Failed to save tag. Please try again.');
+      console.error('Error saving currency:', err);
+      alert('Failed to save currency. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -139,11 +121,11 @@ export default function Tags() {
     return (
       <>
         <PageMeta
-          title="Tags | MoneyRunner"
-          description="Manage your expense tags"
+          title="Currencies | MoneyRunner"
+          description="View all currencies"
         />
         <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500 dark:text-gray-400">Loading tags...</p>
+          <p className="text-gray-500 dark:text-gray-400">Loading currencies...</p>
         </div>
       </>
     );
@@ -153,8 +135,8 @@ export default function Tags() {
     return (
       <>
         <PageMeta
-          title="Tags | MoneyRunner"
-          description="Manage your expense tags"
+          title="Currencies | MoneyRunner"
+          description="View all currencies"
         />
         <div className="flex items-center justify-center h-64">
           <p className="text-red-500">{error}</p>
@@ -166,21 +148,24 @@ export default function Tags() {
   return (
     <>
       <PageMeta
-        title="Tags | MoneyRunner"
-        description="Manage your expense tags"
+        title="Currencies | MoneyRunner"
+        description="View all currencies"
       />
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
-              Tags
+              Currencies
             </h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Manage and view all your expense tags
+              View all available currencies
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
+            <button
+              onClick={handleOpenModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+            >
               <svg
                 className="stroke-current fill-white dark:fill-gray-800"
                 width="20"
@@ -218,27 +203,8 @@ export default function Tags() {
               </svg>
               Filter
             </button>
-            <button
-              onClick={handleOpenModal}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-            >
-              <svg
-                className="stroke-current fill-white dark:fill-gray-800"
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M10 5V10M10 10V15M10 10H5M10 10H15"
-                  stroke=""
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Add Tag
+            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
+              Export
             </button>
           </div>
         </div>
@@ -252,13 +218,19 @@ export default function Tags() {
                     isHeader
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
+                    Code
+                  </TableCell>
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
                     Name
                   </TableCell>
                   <TableCell
                     isHeader
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Color
+                    Symbol
                   </TableCell>
                   <TableCell
                     isHeader
@@ -276,30 +248,25 @@ export default function Tags() {
               </TableHeader>
 
               <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {currentData.map((tag) => (
-                  <TableRow key={tag.id} className="">
+                {currencies.map((currency) => (
+                  <TableRow key={currency.id} className="">
                     <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Badge size="sm" color="light">
-                          {tag.name}
-                        </Badge>
-                      </div>
+                      <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                        {currency.code}
+                      </p>
                     </TableCell>
                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        {tag.color}
-                      </div>
+                      {currency.name}
                     </TableCell>
                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      {tag.createdAt}
+                      {currency.symbol}
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                      {currency.createdAt}
                     </TableCell>
                     <TableCell className="py-3">
                       <button
-                        onClick={() => handleEditTag(tag)}
+                        onClick={() => handleEditCurrency(currency)}
                         className="text-brand-500 hover:text-brand-600 text-sm font-medium"
                       >
                         Edit
@@ -310,70 +277,16 @@ export default function Tags() {
               </TableBody>
             </Table>
           </div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Page {currentPage} of {totalPages}
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-500 dark:text-gray-400">
-                  Rows per page:
-                </label>
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-                >
-                  {ITEMS_PER_PAGE_OPTIONS.map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => handlePageChange(page)}
-                  className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium shadow-theme-xs ${
-                    currentPage === page
-                      ? "border-brand-500 bg-brand-500 text-white dark:border-brand-400 dark:bg-brand-400"
-                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-              >
-                Next
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Add Tag Modal */}
+      {/* Add/Edit Currency Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                {editingId ? 'Edit Tag' : 'Add Tag'}
+                {editingId ? 'Edit Currency' : 'Add Currency'}
               </h3>
               <button
                 onClick={handleCloseModal}
@@ -387,6 +300,16 @@ export default function Tags() {
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code</label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                   <input
                     type="text"
@@ -397,21 +320,14 @@ export default function Tags() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color</label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={formData.color}
-                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                      className="w-12 h-10 rounded border border-gray-300 dark:border-gray-700"
-                    />
-                    <input
-                      type="text"
-                      value={formData.color}
-                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                    />
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Symbol</label>
+                  <input
+                    type="text"
+                    value={formData.symbol}
+                    onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-6">

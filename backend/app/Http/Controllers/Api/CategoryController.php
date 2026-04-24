@@ -14,12 +14,26 @@ class CategoryController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $categories = $request->user()->categories()
+        $query = $request->user()->categories()
             ->with('parent')
-            ->where('is_active', true)
-            ->get();
-        
-        return response()->json($categories);
+            ->where('is_active', true);
+
+        // Pagination
+        $perPage = $request->input('per_page', 50);
+        $page = $request->input('page', 1);
+
+        $categories = $query->orderBy('name', 'asc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => $categories->items(),
+            'meta' => [
+                'current_page' => $categories->currentPage(),
+                'per_page' => $categories->perPage(),
+                'total' => $categories->total(),
+                'last_page' => $categories->lastPage(),
+            ],
+        ]);
     }
 
     /**
@@ -36,7 +50,7 @@ class CategoryController extends Controller
         ]);
 
         // Validate parent belongs to same user
-        if ($validated['parent_id']) {
+        if (isset($validated['parent_id']) && $validated['parent_id']) {
             $parent = Category::find($validated['parent_id']);
             if ($parent->user_id !== $request->user()->id) {
                 return response()->json(['message' => 'Invalid parent category'], 422);

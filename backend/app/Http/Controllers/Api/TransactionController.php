@@ -48,8 +48,22 @@ class TransactionController extends Controller
             });
         }
 
-        $transactions = $query->orderBy('date', 'desc')->get();
-        return response()->json($transactions);
+        // Pagination
+        $perPage = $request->input('per_page', 50);
+        $page = $request->input('page', 1);
+
+        $transactions = $query->orderBy('date', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => $transactions->items(),
+            'meta' => [
+                'current_page' => $transactions->currentPage(),
+                'per_page' => $transactions->perPage(),
+                'total' => $transactions->total(),
+                'last_page' => $transactions->lastPage(),
+            ],
+        ]);
     }
 
     /**

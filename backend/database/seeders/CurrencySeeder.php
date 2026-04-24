@@ -22,7 +22,10 @@ class CurrencySeeder extends Seeder
         ];
 
         foreach ($currencies as $currency) {
-            \App\Models\Currency::create($currency);
+            \App\Models\Currency::firstOrCreate(
+                ['code' => $currency['code']],
+                $currency
+            );
         }
     }
 }

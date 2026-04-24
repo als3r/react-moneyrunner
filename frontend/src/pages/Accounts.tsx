@@ -6,65 +6,70 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import Badge from "../components/ui/badge/Badge";
 import PageMeta from "../components/common/PageMeta";
-import { tagService, Tag, TagFilters } from "../services/tagService";
+import { accountService, Account, AccountFilters, CreateAccount } from "../services/accountService";
+import { currencyService, Currency } from "../services/currencyService";
 
-interface DisplayTag {
+interface DisplayAccount {
   id: number;
   name: string;
-  color: string;
+  balance: string;
+  currency: string;
   createdAt: string;
 }
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 500];
 
-export default function Tags() {
+export default function Accounts() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
-  const [tags, setTags] = useState<DisplayTag[]>([]);
+  const [accounts, setAccounts] = useState<DisplayAccount[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [formData, setFormData] = useState({
     name: '',
-    color: '#6366f1',
+    type: 'checking',
+    currency_id: '',
+    balance: '0',
   });
 
-  const fetchTags = useCallback(async () => {
+  const fetchAccounts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const filters: TagFilters = {
+      const filters: AccountFilters = {
         page: currentPage,
         per_page: itemsPerPage,
       };
 
-      const response = await tagService.getAll(filters);
+      const response = await accountService.getAll(filters);
       
-      const displayData: DisplayTag[] = response.data.map((t: Tag) => ({
-        id: t.id,
-        name: t.name,
-        color: t.color || 'gray',
-        createdAt: new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      const displayData: DisplayAccount[] = response.data.map((a: Account) => ({
+        id: a.id,
+        name: a.name,
+        balance: `${a.currency.symbol}${Number(a.balance).toFixed(2)}`,
+        currency: a.currency.code,
+        createdAt: new Date(a.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
       }));
       
-      setTags(displayData);
+      setAccounts(displayData);
       setTotalPages(response.meta.last_page);
     } catch (err) {
-      setError('Failed to load tags');
-      console.error('Error fetching tags:', err);
+      setError('Failed to load accounts');
+      console.error('Error fetching accounts:', err);
     } finally {
       setLoading(false);
     }
   }, [currentPage, itemsPerPage]);
 
   useEffect(() => {
-    fetchTags();
+    fetchAccounts();
   }, [currentPage, itemsPerPage]);
 
   useEffect(() => {
@@ -78,7 +83,7 @@ export default function Tags() {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isModalOpen]);
 
-  const currentData = tags;
+  const currentData = accounts;
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -89,20 +94,35 @@ export default function Tags() {
     setCurrentPage(1);
   };
 
-  const handleOpenModal = () => {
+  const fetchCurrencies = async () => {
+    try {
+      const data = await currencyService.getAll();
+      setCurrencies(data);
+    } catch (err) {
+      console.error('Error fetching currencies:', err);
+    }
+  };
+
+  const handleOpenModal = async () => {
+    await fetchCurrencies();
     setEditingId(null);
     setFormData({
       name: '',
-      color: '#6366f1',
+      type: 'checking',
+      currency_id: '',
+      balance: '0',
     });
     setIsModalOpen(true);
   };
 
-  const handleEditTag = (tag: DisplayTag) => {
-    setEditingId(tag.id);
+  const handleEditAccount = async (account: DisplayAccount) => {
+    await fetchCurrencies();
+    setEditingId(account.id);
     setFormData({
-      name: tag.name,
-      color: tag.color,
+      name: account.name,
+      type: 'checking',
+      currency_id: '',
+      balance: account.balance.replace(/[^0-9.-]/g, ''),
     });
     setIsModalOpen(true);
   };
@@ -112,7 +132,9 @@ export default function Tags() {
     setEditingId(null);
     setFormData({
       name: '',
-      color: '#6366f1',
+      type: 'checking',
+      currency_id: '',
+      balance: '0',
     });
   };
 
@@ -120,17 +142,23 @@ export default function Tags() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
+      const accountData: CreateAccount = {
+        name: formData.name,
+        type: formData.type,
+        currency_id: parseInt(formData.currency_id),
+        balance: parseFloat(formData.balance),
+      };
       if (editingId) {
-        await tagService.update(editingId, formData);
+        await accountService.update(editingId, accountData);
       } else {
-        await tagService.create(formData);
+        await accountService.create(accountData);
       }
       setIsSubmitting(false);
       handleCloseModal();
-      fetchTags();
+      fetchAccounts();
     } catch (err) {
-      console.error('Error saving tag:', err);
-      alert('Failed to save tag. Please try again.');
+      console.error('Error saving account:', err);
+      alert('Failed to save account. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -139,11 +167,11 @@ export default function Tags() {
     return (
       <>
         <PageMeta
-          title="Tags | MoneyRunner"
-          description="Manage your expense tags"
+          title="Accounts | MoneyRunner"
+          description="View all your accounts"
         />
         <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500 dark:text-gray-400">Loading tags...</p>
+          <p className="text-gray-500 dark:text-gray-400">Loading accounts...</p>
         </div>
       </>
     );
@@ -153,8 +181,8 @@ export default function Tags() {
     return (
       <>
         <PageMeta
-          title="Tags | MoneyRunner"
-          description="Manage your expense tags"
+          title="Accounts | MoneyRunner"
+          description="View all your accounts"
         />
         <div className="flex items-center justify-center h-64">
           <p className="text-red-500">{error}</p>
@@ -166,17 +194,17 @@ export default function Tags() {
   return (
     <>
       <PageMeta
-        title="Tags | MoneyRunner"
-        description="Manage your expense tags"
+        title="Accounts | MoneyRunner"
+        description="View all your accounts"
       />
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
-              Tags
+              Accounts
             </h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Manage and view all your expense tags
+              Manage and view all your accounts
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -238,7 +266,10 @@ export default function Tags() {
                   strokeLinejoin="round"
                 />
               </svg>
-              Add Tag
+              Add Account
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
+              Export
             </button>
           </div>
         </div>
@@ -252,13 +283,19 @@ export default function Tags() {
                     isHeader
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Name
+                    Account Name
                   </TableCell>
                   <TableCell
                     isHeader
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Color
+                    Balance
+                  </TableCell>
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    Currency
                   </TableCell>
                   <TableCell
                     isHeader
@@ -276,30 +313,25 @@ export default function Tags() {
               </TableHeader>
 
               <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {currentData.map((tag) => (
-                  <TableRow key={tag.id} className="">
+                {currentData.map((account) => (
+                  <TableRow key={account.id} className="">
                     <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Badge size="sm" color="light">
-                          {tag.name}
-                        </Badge>
-                      </div>
+                      <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                        {account.name}
+                      </p>
                     </TableCell>
                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        {tag.color}
-                      </div>
+                      {account.balance}
                     </TableCell>
                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      {tag.createdAt}
+                      {account.currency}
+                    </TableCell>
+                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                      {account.createdAt}
                     </TableCell>
                     <TableCell className="py-3">
                       <button
-                        onClick={() => handleEditTag(tag)}
+                        onClick={() => handleEditAccount(account)}
                         className="text-brand-500 hover:text-brand-600 text-sm font-medium"
                       >
                         Edit
@@ -367,13 +399,13 @@ export default function Tags() {
         </div>
       </div>
 
-      {/* Add Tag Modal */}
+      {/* Add Account Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                {editingId ? 'Edit Tag' : 'Add Tag'}
+                {editingId ? 'Edit Account' : 'Add Account'}
               </h3>
               <button
                 onClick={handleCloseModal}
@@ -387,7 +419,7 @@ export default function Tags() {
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Name</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -397,21 +429,46 @@ export default function Tags() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color</label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={formData.color}
-                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                      className="w-12 h-10 rounded border border-gray-300 dark:border-gray-700"
-                    />
-                    <input
-                      type="text"
-                      value={formData.color}
-                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                    />
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  >
+                    <option value="checking">Checking</option>
+                    <option value="savings">Savings</option>
+                    <option value="credit">Credit Card</option>
+                    <option value="cash">Cash</option>
+                    <option value="investment">Investment</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Currency</label>
+                  <select
+                    value={formData.currency_id}
+                    onChange={(e) => setFormData({ ...formData, currency_id: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  >
+                    <option value="">Select currency</option>
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.id}>
+                        {currency.code} ({currency.symbol})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Initial Balance</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.balance}
+                    onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-6">

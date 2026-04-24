@@ -14,11 +14,25 @@ class TagController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $tags = $request->user()->tags()
-            ->where('is_active', true)
-            ->get();
-        
-        return response()->json($tags);
+        $query = $request->user()->tags()
+            ->where('is_active', true);
+
+        // Pagination
+        $perPage = $request->input('per_page', 50);
+        $page = $request->input('page', 1);
+
+        $tags = $query->orderBy('name', 'asc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => $tags->items(),
+            'meta' => [
+                'current_page' => $tags->currentPage(),
+                'per_page' => $tags->perPage(),
+                'total' => $tags->total(),
+                'last_page' => $tags->lastPage(),
+            ],
+        ]);
     }
 
     /**

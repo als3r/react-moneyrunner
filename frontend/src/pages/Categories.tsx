@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Table,
   TableBody,
@@ -7,84 +7,77 @@ import {
   TableRow,
 } from "../components/ui/table";
 import PageMeta from "../components/common/PageMeta";
+import { categoryService, Category, CategoryFilters } from "../services/categoryService";
 
-interface Category {
+interface DisplayCategory {
   id: number;
   name: string;
   description: string;
-  transactionCount: number;
   createdAt: string;
 }
-
-const tableData: Category[] = [
-  {
-    id: 1,
-    name: "Food",
-    description: "Groceries, restaurants, dining",
-    transactionCount: 45,
-    createdAt: "2024-01-01",
-  },
-  {
-    id: 2,
-    name: "Transport",
-    description: "Gas, public transport, car maintenance",
-    transactionCount: 23,
-    createdAt: "2024-01-02",
-  },
-  {
-    id: 3,
-    name: "Utilities",
-    description: "Electricity, water, internet, phone",
-    transactionCount: 12,
-    createdAt: "2024-01-03",
-  },
-  {
-    id: 4,
-    name: "Entertainment",
-    description: "Movies, games, subscriptions",
-    transactionCount: 18,
-    createdAt: "2024-01-04",
-  },
-  {
-    id: 5,
-    name: "Health",
-    description: "Medical, pharmacy, gym",
-    transactionCount: 8,
-    createdAt: "2024-01-05",
-  },
-  {
-    id: 6,
-    name: "Shopping",
-    description: "Clothing, electronics, household items",
-    transactionCount: 15,
-    createdAt: "2024-01-06",
-  },
-  {
-    id: 7,
-    name: "Education",
-    description: "Books, courses, tuition",
-    transactionCount: 5,
-    createdAt: "2024-01-07",
-  },
-  {
-    id: 8,
-    name: "Travel",
-    description: "Flights, hotels, vacation",
-    transactionCount: 7,
-    createdAt: "2024-01-08",
-  },
-];
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 500];
 
 export default function Categories() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [categories, setCategories] = useState<DisplayCategory[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+  });
 
-  const totalPages = Math.ceil(tableData.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentData = tableData.slice(startIndex, endIndex);
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const filters: CategoryFilters = {
+        page: currentPage,
+        per_page: itemsPerPage,
+      };
+
+      const response = await categoryService.getAll(filters);
+      
+      const displayData: DisplayCategory[] = response.data.map((c: Category) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description || '',
+        createdAt: new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      }));
+      
+      setCategories(displayData);
+      setTotalPages(response.meta.last_page);
+    } catch (err) {
+      setError('Failed to load categories');
+      console.error('Error fetching categories:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isModalOpen) {
+        handleCloseModal();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isModalOpen]);
+
+  const currentData = categories;
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -94,6 +87,80 @@ export default function Categories() {
     setItemsPerPage(size);
     setCurrentPage(1);
   };
+
+  const handleOpenModal = () => {
+    setEditingId(null);
+    setFormData({
+      name: '',
+      description: '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleEditCategory = (category: DisplayCategory) => {
+    setEditingId(category.id);
+    setFormData({
+      name: category.name,
+      description: category.description || '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+    setFormData({
+      name: '',
+      description: '',
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSubmitting(true);
+      if (editingId) {
+        await categoryService.update(editingId, formData);
+      } else {
+        await categoryService.create(formData);
+      }
+      setIsSubmitting(false);
+      handleCloseModal();
+      fetchCategories();
+    } catch (err) {
+      console.error('Error saving category:', err);
+      alert('Failed to save category. Please try again.');
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <>
+        <PageMeta
+          title="Categories | MoneyRunner"
+          description="Manage your expense categories"
+        />
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-500 dark:text-gray-400">Loading categories...</p>
+        </div>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <PageMeta
+          title="Categories | MoneyRunner"
+          description="Manage your expense categories"
+        />
+        <div className="flex items-center justify-center h-64">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -150,7 +217,26 @@ export default function Categories() {
               </svg>
               Filter
             </button>
-            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
+            <button
+              onClick={handleOpenModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+            >
+              <svg
+                className="stroke-current fill-white dark:fill-gray-800"
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M10 5V10M10 10V15M10 10H5M10 10H15"
+                  stroke=""
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
               Add Category
             </button>
           </div>
@@ -177,13 +263,13 @@ export default function Categories() {
                     isHeader
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Transactions
+                    Created At
                   </TableCell>
                   <TableCell
                     isHeader
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Created At
+                    Actions
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -200,10 +286,15 @@ export default function Categories() {
                       {category.description}
                     </TableCell>
                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      {category.transactionCount}
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
                       {category.createdAt}
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <button
+                        onClick={() => handleEditCategory(category)}
+                        className="text-brand-500 hover:text-brand-600 text-sm font-medium"
+                      >
+                        Edit
+                      </button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -215,8 +306,7 @@ export default function Categories() {
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-4">
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Showing {startIndex + 1} to {Math.min(endIndex, tableData.length)} of{" "}
-                {tableData.length} categories
+                Page {currentPage} of {totalPages}
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm text-gray-500 dark:text-gray-400">
@@ -267,6 +357,76 @@ export default function Categories() {
           </div>
         </div>
       </div>
+
+      {/* Add Category Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                {editingId ? 'Edit Category' : 'Add Category'}
+              </h3>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 4L16 16M4 16L16 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }

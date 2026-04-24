@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -7,102 +8,59 @@ import {
 } from "../ui/table";
 import Badge from "../ui/badge/Badge";
 import { Link } from "react-router";
+import { transactionService, Transaction } from "../../services/transactionService";
 
-// Define the TypeScript interface for transactions
-interface Transaction {
+// Define the TypeScript interface for display transactions
+interface DisplayTransaction {
   id: number;
   description: string;
   category: string;
+  account: string;
   amount: string;
   tags: string[];
   date: string;
 }
 
-// Define the table data using the interface
-const tableData: Transaction[] = [
-  {
-    id: 1,
-    description: "Grocery shopping",
-    category: "Food",
-    amount: "$150.00",
-    tags: ["weekly"],
-    date: "2024-01-15",
-  },
-  {
-    id: 2,
-    description: "Electric bill",
-    category: "Utilities",
-    amount: "$85.50",
-    tags: ["monthly", "essential"],
-    date: "2024-01-14",
-  },
-  {
-    id: 3,
-    description: "Netflix subscription",
-    category: "Entertainment",
-    amount: "$15.99",
-    tags: ["monthly"],
-    date: "2024-01-13",
-  },
-  {
-    id: 4,
-    description: "Gas station",
-    category: "Transport",
-    amount: "$45.00",
-    tags: ["weekly"],
-    date: "2024-01-12",
-  },
-  {
-    id: 5,
-    description: "Restaurant dinner",
-    category: "Food",
-    amount: "$62.50",
-    tags: ["dining"],
-    date: "2024-01-11",
-  },
-  {
-    id: 6,
-    description: "Internet bill",
-    category: "Utilities",
-    amount: "$59.99",
-    tags: ["monthly", "essential"],
-    date: "2024-01-10",
-  },
-  {
-    id: 7,
-    description: "Coffee shop",
-    category: "Food",
-    amount: "$8.50",
-    tags: ["daily"],
-    date: "2024-01-09",
-  },
-  {
-    id: 8,
-    description: "Gym membership",
-    category: "Health",
-    amount: "$45.00",
-    tags: ["monthly"],
-    date: "2024-01-08",
-  },
-  {
-    id: 9,
-    description: "Book purchase",
-    category: "Education",
-    amount: "$24.99",
-    tags: ["one-time"],
-    date: "2024-01-07",
-  },
-  {
-    id: 10,
-    description: "Bus pass",
-    category: "Transport",
-    amount: "$30.00",
-    tags: ["monthly"],
-    date: "2024-01-06",
-  },
-];
-
 export default function RecentOrders() {
+  const [transactions, setTransactions] = useState<DisplayTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRecentTransactions();
+  }, []);
+
+  const fetchRecentTransactions = async () => {
+    try {
+      setLoading(true);
+      const response = await transactionService.getAll({ page: 1, per_page: 10 });
+      
+      const displayData: DisplayTransaction[] = response.data.map((t: Transaction) => ({
+        id: t.id,
+        description: t.description,
+        category: t.category.name,
+        account: t.account.name,
+        amount: `${t.account.currency.symbol}${Number(t.amount).toFixed(2)}`,
+        tags: t.tags.map(tag => tag.name),
+        date: t.date.split('T')[0],
+      }));
+      
+      setTransactions(displayData);
+    } catch (err) {
+      console.error('Error fetching recent transactions:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  if (loading) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">
+        <div className="flex items-center justify-center h-48">
+          <p className="text-gray-500 dark:text-gray-400">Loading transactions...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">
       <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -180,6 +138,12 @@ export default function RecentOrders() {
                 isHeader
                 className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
+                Account
+              </TableCell>
+              <TableCell
+                isHeader
+                className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+              >
                 Category
               </TableCell>
               <TableCell
@@ -200,7 +164,7 @@ export default function RecentOrders() {
           {/* Table Body */}
 
           <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {tableData.map((transaction) => (
+            {transactions.map((transaction) => (
               <TableRow key={transaction.id} className="">
                 <TableCell className="py-3">
                   <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
@@ -209,6 +173,9 @@ export default function RecentOrders() {
                 </TableCell>
                 <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
                   {transaction.date}
+                </TableCell>
+                <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                  {transaction.account}
                 </TableCell>
                 <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
                   {transaction.category}

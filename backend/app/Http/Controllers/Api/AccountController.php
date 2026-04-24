@@ -14,11 +14,26 @@ class AccountController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $accounts = $request->user()->accounts()
+        $query = $request->user()->accounts()
             ->with('currency')
-            ->where('is_active', true)
-            ->get();
-        return response()->json($accounts);
+            ->where('is_active', true);
+
+        // Pagination
+        $perPage = $request->input('per_page', 50);
+        $page = $request->input('page', 1);
+
+        $accounts = $query->orderBy('name', 'asc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => $accounts->items(),
+            'meta' => [
+                'current_page' => $accounts->currentPage(),
+                'per_page' => $accounts->perPage(),
+                'total' => $accounts->total(),
+                'last_page' => $accounts->lastPage(),
+            ],
+        ]);
     }
 
     /**
