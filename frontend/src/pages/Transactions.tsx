@@ -117,26 +117,33 @@ const tableData: Transaction[] = [
   },
 ];
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 500];
 
 export default function Transactions() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  // Filter transactions based on selected tags
-  const filteredData = selectedTags.length > 0
-    ? tableData.filter(transaction =>
-        selectedTags.every(tag => transaction.tags.includes(tag))
-      )
-    : tableData;
+  // Filter transactions based on selected tags and categories
+  const filteredData = tableData.filter(transaction => {
+    const tagMatch = selectedTags.length === 0 || selectedTags.every(tag => transaction.tags.includes(tag));
+    const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(transaction.category);
+    return tagMatch && categoryMatch;
+  });
 
-  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
   const currentData = filteredData.slice(startIndex, endIndex);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (size: number) => {
+    setItemsPerPage(size);
+    setCurrentPage(1); // Reset to first page when page size changes
   };
 
   const handleTagClick = (tag: string) => {
@@ -148,8 +155,18 @@ export default function Transactions() {
     setCurrentPage(1); // Reset to first page when filter changes
   };
 
+  const handleCategoryClick = (category: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
   const clearFilters = () => {
     setSelectedTags([]);
+    setSelectedCategories([]);
     setCurrentPage(1);
   };
 
@@ -170,12 +187,12 @@ export default function Transactions() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {selectedTags.length > 0 && (
+            {(selectedTags.length > 0 || selectedCategories.length > 0) && (
               <button
                 onClick={clearFilters}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
               >
-                Clear filters ({selectedTags.length})
+                Clear filters ({selectedTags.length + selectedCategories.length})
               </button>
             )}
             <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
@@ -272,7 +289,16 @@ export default function Transactions() {
                       {transaction.date}
                     </TableCell>
                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      {transaction.category}
+                      <button
+                        onClick={() => handleCategoryClick(transaction.category)}
+                        className={`cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 ${
+                          selectedCategories.includes(transaction.category)
+                            ? "text-brand-500 dark:text-brand-400 font-medium"
+                            : ""
+                        }`}
+                      >
+                        {transaction.category}
+                      </button>
                     </TableCell>
                     <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
                       {transaction.amount}
@@ -303,10 +329,32 @@ export default function Transactions() {
 
           {/* Pagination */}
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredData.length)} of{" "}
-              {filteredData.length} transactions
-              {selectedTags.length > 0 && ` (filtered by ${selectedTags.length} tag${selectedTags.length > 1 ? 's' : ''})`}
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Showing {startIndex + 1} to {Math.min(endIndex, filteredData.length)} of{" "}
+                {filteredData.length} transactions
+                {(selectedTags.length > 0 || selectedCategories.length > 0) && (
+                  <span>
+                    {" "}(filtered by {selectedTags.length} tag{selectedTags.length !== 1 ? 's' : ''} and {selectedCategories.length} category{selectedCategories.length !== 1 ? 'ies' : 'y'})
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-500 dark:text-gray-400">
+                  Rows per page:
+                </label>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+                >
+                  {ITEMS_PER_PAGE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button
