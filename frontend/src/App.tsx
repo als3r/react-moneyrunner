@@ -19,6 +19,8 @@ import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import Home from "./pages/Dashboard/Home";
 import Transactions from "./pages/Transactions";
+import Categories from "./pages/Categories";
+import Tags from "./pages/Tags";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 export default function App() {
@@ -39,6 +41,10 @@ export default function App() {
 
             {/* Transactions */}
             <Route path="transactions" element={<Transactions />} />
+
+            {/* Categories and Tags */}
+            <Route path="categories" element={<Categories />} />
+            <Route path="tags" element={<Tags />} />
 
             {/* Others Page */}
             <Route path="/profile" element={<UserProfiles />} />

@@ -60,6 +60,46 @@ const tableData: Transaction[] = [
     tags: ["dining"],
     date: "2024-01-11",
   },
+  {
+    id: 6,
+    description: "Internet bill",
+    category: "Utilities",
+    amount: "$59.99",
+    tags: ["monthly", "essential"],
+    date: "2024-01-10",
+  },
+  {
+    id: 7,
+    description: "Coffee shop",
+    category: "Food",
+    amount: "$8.50",
+    tags: ["daily"],
+    date: "2024-01-09",
+  },
+  {
+    id: 8,
+    description: "Gym membership",
+    category: "Health",
+    amount: "$45.00",
+    tags: ["monthly"],
+    date: "2024-01-08",
+  },
+  {
+    id: 9,
+    description: "Book purchase",
+    category: "Education",
+    amount: "$24.99",
+    tags: ["one-time"],
+    date: "2024-01-07",
+  },
+  {
+    id: 10,
+    description: "Bus pass",
+    category: "Transport",
+    amount: "$30.00",
+    tags: ["monthly"],
+    date: "2024-01-06",
+  },
 ];
 
 export default function RecentOrders() {
@@ -68,7 +108,7 @@ export default function RecentOrders() {
       <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            Transactions
+            Recent Transactions
           </h3>
         </div>
 
@@ -134,6 +174,12 @@ export default function RecentOrders() {
                 isHeader
                 className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
+                Date
+              </TableCell>
+              <TableCell
+                isHeader
+                className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+              >
                 Category
               </TableCell>
               <TableCell
@@ -157,14 +203,12 @@ export default function RecentOrders() {
             {tableData.map((transaction) => (
               <TableRow key={transaction.id} className="">
                 <TableCell className="py-3">
-                  <div>
-                    <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                      {transaction.description}
-                    </p>
-                    <span className="text-gray-500 text-theme-xs dark:text-gray-400">
-                      {transaction.date}
-                    </span>
-                  </div>
+                  <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                    {transaction.description}
+                  </p>
+                </TableCell>
+                <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                  {transaction.date}
                 </TableCell>
                 <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
                   {transaction.category}
