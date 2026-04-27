@@ -23,6 +23,7 @@ import Categories from "./pages/Categories";
 import Tags from "./pages/Tags";
 import Accounts from "./pages/Accounts";
 import Currencies from "./pages/Currencies";
+import AccountDetail from "./pages/AccountDetail";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 export default function App() {
@@ -50,6 +51,7 @@ export default function App() {
 
             {/* Accounts and Currencies */}
             <Route path="accounts" element={<Accounts />} />
+            <Route path="account/:accountHash" element={<AccountDetail />} />
             <Route path="currencies" element={<Currencies />} />
 
             {/* Others Page */}

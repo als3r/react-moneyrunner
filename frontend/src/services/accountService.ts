@@ -4,12 +4,15 @@ export interface Account {
   id: number;
   name: string;
   balance: number;
+  initial_balance: number;
   currency_id: number;
   currency: {
     id: number;
     code: string;
     symbol: string;
   };
+  account_hash: string;
+  type: string;
   created_at: string;
   updated_at: string;
 }
@@ -17,6 +20,7 @@ export interface Account {
 export interface AccountFilters {
   page?: number;
   per_page?: number;
+  name?: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -34,6 +38,7 @@ export interface CreateAccount {
   type: string;
   currency_id: number;
   balance: number;
+  initial_balance: number;
 }
 
 export const accountService = {
@@ -67,5 +72,35 @@ export const accountService = {
 
   delete: async (id: number): Promise<void> => {
     await api.delete(`/accounts/${id}`);
+  },
+
+  getByHash: async (accountHash: string, filters?: AccountFilters): Promise<{
+    account: Account;
+    transactions: PaginatedResponse<{
+      id: number;
+      description: string;
+      amount: number;
+      date: string;
+      type: string;
+      category: {
+        id: number;
+        name: string;
+      };
+      tags: Array<{
+        id: number;
+        name: string;
+      }>;
+    }>;
+  }> => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined) {
+          params.append(key, value.toString());
+        }
+      });
+    }
+    const response = await api.get(`/account/${accountHash}`, { params });
+    return response.data;
   },
 };

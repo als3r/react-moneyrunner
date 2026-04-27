@@ -15,6 +15,7 @@ export interface Category {
 export interface CategoryFilters {
   page?: number;
   per_page?: number;
+  name?: string;
 }
 
 export interface PaginatedResponse<T> {

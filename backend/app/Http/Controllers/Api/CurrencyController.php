@@ -12,9 +12,22 @@ class CurrencyController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $currencies = Currency::where('is_active', true)->get();
+        $query = Currency::where('is_active', true);
+
+        // Apply filters
+        if ($request->filled('code')) {
+            $query->where('code', 'like', '%' . $request->code . '%');
+        }
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%' . $request->name . '%');
+        }
+        if ($request->filled('symbol')) {
+            $query->where('symbol', 'like', '%' . $request->symbol . '%');
+        }
+
+        $currencies = $query->get();
         return response()->json($currencies);
     }
 

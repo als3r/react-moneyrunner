@@ -11,6 +11,7 @@ export interface Tag {
 export interface TagFilters {
   page?: number;
   per_page?: number;
+  name?: string;
 }
 
 export interface PaginatedResponse<T> {

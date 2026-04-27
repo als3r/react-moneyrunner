@@ -99,6 +99,17 @@ class TransactionController extends Controller
             $transaction->tags()->attach($validated['tag_ids']);
         }
 
+        // Update account balance
+        $account = \App\Models\Account::find($validated['account_id']);
+        if ($validated['type'] === 'income') {
+            $account->balance += $validated['amount'];
+        } elseif ($validated['type'] === 'expense') {
+            $account->balance -= $validated['amount'];
+        } elseif ($validated['type'] === 'transfer') {
+            $account->balance -= $validated['amount'];
+        }
+        $account->save();
+
         $transaction->load(['account.currency', 'category', 'tags']);
         return response()->json($transaction, 201);
     }
@@ -153,7 +164,39 @@ class TransactionController extends Controller
             }
         }
 
+        // Update account balance if amount or type changed
+        $oldAccount = $transaction->account;
+        $oldAmount = $transaction->amount;
+        $oldType = $transaction->type;
+        $oldAccountId = $transaction->account_id;
+
         $transaction->update($validated);
+
+        // Reverse old balance from old account
+        if ($oldType === 'income') {
+            $oldAccount->balance -= $oldAmount;
+        } elseif ($oldType === 'expense') {
+            $oldAccount->balance += $oldAmount;
+        } elseif ($oldType === 'transfer') {
+            $oldAccount->balance += $oldAmount;
+        }
+        $oldAccount->save();
+
+        // Apply new balance to new account
+        $newAccount = isset($validated['account_id'])
+            ? \App\Models\Account::find($validated['account_id'])
+            : $oldAccount;
+        $newAmount = $validated['amount'] ?? $oldAmount;
+        $newType = $validated['type'] ?? $oldType;
+
+        if ($newType === 'income') {
+            $newAccount->balance += $newAmount;
+        } elseif ($newType === 'expense') {
+            $newAccount->balance -= $newAmount;
+        } elseif ($newType === 'transfer') {
+            $newAccount->balance -= $newAmount;
+        }
+        $newAccount->save();
 
         // Sync tags
         if (isset($validated['tag_ids'])) {
@@ -172,6 +215,17 @@ class TransactionController extends Controller
         if ($transaction->user_id !== $request->user()->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+
+        // Update account balance (reverse the transaction)
+        $account = $transaction->account;
+        if ($transaction->type === 'income') {
+            $account->balance -= $transaction->amount;
+        } elseif ($transaction->type === 'expense') {
+            $account->balance += $transaction->amount;
+        } elseif ($transaction->type === 'transfer') {
+            $account->balance += $transaction->amount;
+        }
+        $account->save();
 
         $transaction->delete();
         return response()->json(null, 204);

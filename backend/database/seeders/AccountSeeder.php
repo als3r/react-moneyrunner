@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Currency;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class AccountSeeder extends Seeder
 {
@@ -22,6 +23,7 @@ class AccountSeeder extends Seeder
                 'name' => 'Main Checking',
                 'balance' => 5000.00,
                 'type' => 'checking',
+                'account_hash' => Str::slug('Main Checking') . '-' . Str::random(8),
             ]);
 
             Account::create([
@@ -30,6 +32,7 @@ class AccountSeeder extends Seeder
                 'name' => 'Savings',
                 'balance' => 15000.00,
                 'type' => 'savings',
+                'account_hash' => Str::slug('Savings') . '-' . Str::random(8),
             ]);
 
             Account::create([
@@ -38,6 +41,7 @@ class AccountSeeder extends Seeder
                 'name' => 'Euro Account',
                 'balance' => 2000.00,
                 'type' => 'checking',
+                'account_hash' => Str::slug('Euro Account') . '-' . Str::random(8),
             ]);
         }
     }

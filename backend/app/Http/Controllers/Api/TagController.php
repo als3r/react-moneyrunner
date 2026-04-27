@@ -17,6 +17,11 @@ class TagController extends Controller
         $query = $request->user()->tags()
             ->where('is_active', true);
 
+        // Apply filters
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%' . $request->name . '%');
+        }
+
         // Pagination
         $perPage = $request->input('per_page', 50);
         $page = $request->input('page', 1);

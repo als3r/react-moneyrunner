@@ -27,32 +27,45 @@ export default function Tags() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     color: '#6366f1',
   });
+  const [filterData, setFilterData] = useState({
+    name: '',
+  });
+  const [appliedFilters, setAppliedFilters] = useState({
+    name: '',
+  });
 
-  const fetchTags = useCallback(async () => {
+  const fetchTags = useCallback(async (nameFilter?: string) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const filters: TagFilters = {
         page: currentPage,
         per_page: itemsPerPage,
       };
 
+      if (nameFilter !== undefined) {
+        filters.name = nameFilter;
+      } else if (appliedFilters.name) {
+        filters.name = appliedFilters.name;
+      }
+
       const response = await tagService.getAll(filters);
-      
+
       const displayData: DisplayTag[] = response.data.map((t: Tag) => ({
         id: t.id,
         name: t.name,
         color: t.color || 'gray',
         createdAt: new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
       }));
-      
+
       setTags(displayData);
       setTotalPages(response.meta.last_page);
     } catch (err) {
@@ -61,7 +74,7 @@ export default function Tags() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, appliedFilters.name]);
 
   useEffect(() => {
     fetchTags();
@@ -72,11 +85,14 @@ export default function Tags() {
       if (e.key === 'Escape' && isModalOpen) {
         handleCloseModal();
       }
+      if (e.key === 'Escape' && isFilterModalOpen) {
+        handleCloseFilterModal();
+      }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isModalOpen]);
+  }, [isModalOpen, isFilterModalOpen]);
 
   const currentData = tags;
 
@@ -116,6 +132,34 @@ export default function Tags() {
     });
   };
 
+  const handleOpenFilterModal = () => {
+    setFilterData({ ...appliedFilters });
+    setIsFilterModalOpen(true);
+  };
+
+  const handleCloseFilterModal = () => {
+    setIsFilterModalOpen(false);
+  };
+
+  const handleApplyFilter = () => {
+    setAppliedFilters({ ...filterData });
+    handleCloseFilterModal();
+    fetchTags(filterData.name);
+  };
+
+  const handleClearFilter = () => {
+    setFilterData({
+      name: '',
+    });
+  };
+
+  const clearFilters = () => {
+    setAppliedFilters({
+      name: '',
+    });
+    fetchTags('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -134,20 +178,6 @@ export default function Tags() {
       setIsSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <>
-        <PageMeta
-          title="Tags | MoneyRunner"
-          description="Manage your expense tags"
-        />
-        <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500 dark:text-gray-400">Loading tags...</p>
-        </div>
-      </>
-    );
-  }
 
   if (error) {
     return (
@@ -180,7 +210,40 @@ export default function Tags() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
+            {appliedFilters.name && (
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+              >
+                Clear filters
+              </button>
+            )}
+            <button
+              onClick={handleOpenModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+            >
+              <svg
+                className="stroke-current fill-white dark:fill-gray-800"
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M10 5V15M5 10H15"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Add Tag
+            </button>
+            <button
+              onClick={handleOpenFilterModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+            >
               <svg
                 className="stroke-current fill-white dark:fill-gray-800"
                 width="20"
@@ -276,40 +339,101 @@ export default function Tags() {
               </TableHeader>
 
               <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {currentData.map((tag) => (
-                  <TableRow key={tag.id} className="">
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
-                        <Badge size="sm" color="light">
-                          {tag.name}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        {tag.color}
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      {tag.createdAt}
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <button
-                        onClick={() => handleEditTag(tag)}
-                        className="text-brand-500 hover:text-brand-600 text-sm font-medium"
-                      >
-                        Edit
-                      </button>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-12 text-center">
+                      <p className="text-gray-500 dark:text-gray-400">Loading tags...</p>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : currentData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-12 text-center">
+                      <p className="text-gray-500 dark:text-gray-400">No tags found</p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  currentData.map((tag) => (
+                    <TableRow key={tag.id} className="">
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <Badge size="sm" color="light">
+                            {tag.name}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          {tag.color}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        {tag.createdAt}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <button
+                          onClick={() => handleEditTag(tag)}
+                          className="text-brand-500 hover:text-brand-600 text-sm font-medium"
+                        >
+                          Edit
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
+
+          {/* Filter Modal */}
+          {isFilterModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                    Filter Tags
+                  </h3>
+                  <button
+                    onClick={handleCloseFilterModal}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 4L16 16M4 16L16 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={filterData.name}
+                      onChange={(e) => setFilterData({ ...filterData, name: e.target.value })}
+                      placeholder="Search by name..."
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={handleClearFilter}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={handleApplyFilter}
+                    className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Pagination */}
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">

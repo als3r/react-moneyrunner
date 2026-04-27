@@ -39,6 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Account routes
     Route::apiResource('accounts', AccountController::class);
+    Route::post('accounts/{account}/recalculate-balance', [AccountController::class, 'recalculateBalance']);
+    Route::get('account/{accountHash}', [AccountController::class, 'showByHash']);
 
     // Category routes
     Route::apiResource('categories', CategoryController::class);

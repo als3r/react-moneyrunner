@@ -10,8 +10,8 @@ export interface Currency {
 }
 
 export const currencyService = {
-  getAll: async (): Promise<Currency[]> => {
-    const response = await api.get('/currencies');
+  getAll: async (filters?: { code?: string; name?: string; symbol?: string }): Promise<Currency[]> => {
+    const response = await api.get('/currencies', { params: filters });
     return response.data;
   },
 

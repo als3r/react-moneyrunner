@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router";
 import {
   Table,
   TableBody,
@@ -14,13 +15,18 @@ interface DisplayAccount {
   id: number;
   name: string;
   balance: string;
+  initial_balance: string;
   currency: string;
+  currency_id: number;
+  type: string;
   createdAt: string;
+  accountHash: string;
 }
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 500];
 
 export default function Accounts() {
+  const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [accounts, setAccounts] = useState<DisplayAccount[]>([]);
@@ -28,6 +34,7 @@ export default function Accounts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
@@ -35,29 +42,46 @@ export default function Accounts() {
     name: '',
     type: 'checking',
     currency_id: '',
+    initial_balance: '0',
     balance: '0',
   });
+  const [filterData, setFilterData] = useState({
+    name: '',
+  });
+  const [appliedFilters, setAppliedFilters] = useState({
+    name: '',
+  });
 
-  const fetchAccounts = useCallback(async () => {
+  const fetchAccounts = useCallback(async (nameFilter?: string) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const filters: AccountFilters = {
         page: currentPage,
         per_page: itemsPerPage,
       };
 
+      if (nameFilter !== undefined) {
+        filters.name = nameFilter;
+      } else if (appliedFilters.name) {
+        filters.name = appliedFilters.name;
+      }
+
       const response = await accountService.getAll(filters);
-      
+
       const displayData: DisplayAccount[] = response.data.map((a: Account) => ({
         id: a.id,
         name: a.name,
         balance: `${a.currency.symbol}${Number(a.balance).toFixed(2)}`,
+        initial_balance: `${a.currency.symbol}${Number(a.initial_balance || 0).toFixed(2)}`,
         currency: a.currency.code,
+        currency_id: a.currency.id,
+        type: a.type,
         createdAt: new Date(a.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        accountHash: a.account_hash,
       }));
-      
+
       setAccounts(displayData);
       setTotalPages(response.meta.last_page);
     } catch (err) {
@@ -66,22 +90,25 @@ export default function Accounts() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, appliedFilters.name]);
 
   useEffect(() => {
     fetchAccounts();
-  }, [currentPage, itemsPerPage]);
+  }, [fetchAccounts]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isModalOpen) {
         handleCloseModal();
       }
+      if (e.key === 'Escape' && isFilterModalOpen) {
+        handleCloseFilterModal();
+      }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isModalOpen]);
+  }, [isModalOpen, isFilterModalOpen]);
 
   const currentData = accounts;
 
@@ -103,28 +130,32 @@ export default function Accounts() {
     }
   };
 
-  const handleOpenModal = async () => {
-    await fetchCurrencies();
+  const handleOpenModal = () => {
     setEditingId(null);
     setFormData({
       name: '',
       type: 'checking',
       currency_id: '',
+      initial_balance: '0',
       balance: '0',
     });
     setIsModalOpen(true);
+    // Fetch currencies in background
+    fetchCurrencies();
   };
 
-  const handleEditAccount = async (account: DisplayAccount) => {
-    await fetchCurrencies();
+  const handleEditAccount = (account: DisplayAccount) => {
     setEditingId(account.id);
     setFormData({
       name: account.name,
-      type: 'checking',
-      currency_id: '',
+      type: account.type,
+      currency_id: account.currency_id.toString(),
+      initial_balance: account.initial_balance.replace(/[^0-9.-]/g, ''),
       balance: account.balance.replace(/[^0-9.-]/g, ''),
     });
     setIsModalOpen(true);
+    // Fetch currencies in background
+    fetchCurrencies();
   };
 
   const handleCloseModal = () => {
@@ -134,8 +165,37 @@ export default function Accounts() {
       name: '',
       type: 'checking',
       currency_id: '',
+      initial_balance: '0',
       balance: '0',
     });
+  };
+
+  const handleOpenFilterModal = () => {
+    setFilterData({ ...appliedFilters });
+    setIsFilterModalOpen(true);
+  };
+
+  const handleCloseFilterModal = () => {
+    setIsFilterModalOpen(false);
+  };
+
+  const handleApplyFilter = () => {
+    setAppliedFilters({ ...filterData });
+    handleCloseFilterModal();
+    fetchAccounts(filterData.name);
+  };
+
+  const handleClearFilter = () => {
+    setFilterData({
+      name: '',
+    });
+  };
+
+  const clearFilters = () => {
+    setAppliedFilters({
+      name: '',
+    });
+    fetchAccounts('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -147,6 +207,7 @@ export default function Accounts() {
         type: formData.type,
         currency_id: parseInt(formData.currency_id),
         balance: parseFloat(formData.balance),
+        initial_balance: parseFloat(formData.initial_balance),
       };
       if (editingId) {
         await accountService.update(editingId, accountData);
@@ -162,20 +223,6 @@ export default function Accounts() {
       setIsSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <>
-        <PageMeta
-          title="Accounts | MoneyRunner"
-          description="View all your accounts"
-        />
-        <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500 dark:text-gray-400">Loading accounts...</p>
-        </div>
-      </>
-    );
-  }
 
   if (error) {
     return (
@@ -208,7 +255,40 @@ export default function Accounts() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
+            {appliedFilters.name && (
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+              >
+                Clear filters
+              </button>
+            )}
+            <button
+              onClick={handleOpenModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+            >
+              <svg
+                className="stroke-current fill-white dark:fill-gray-800"
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M10 5V15M5 10H15"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Add Account
+            </button>
+            <button
+              onClick={handleOpenFilterModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+            >
               <svg
                 className="stroke-current fill-white dark:fill-gray-800"
                 width="20"
@@ -246,28 +326,6 @@ export default function Accounts() {
               </svg>
               Filter
             </button>
-            <button
-              onClick={handleOpenModal}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-            >
-              <svg
-                className="stroke-current fill-white dark:fill-gray-800"
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M10 5V10M10 10V15M10 10H5M10 10H15"
-                  stroke=""
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Add Account
-            </button>
             <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">
               Export
             </button>
@@ -289,7 +347,13 @@ export default function Accounts() {
                     isHeader
                     className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Balance
+                    Initial Balance
+                  </TableCell>
+                  <TableCell
+                    isHeader
+                    className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  >
+                    Actual Balance
                   </TableCell>
                   <TableCell
                     isHeader
@@ -313,32 +377,52 @@ export default function Accounts() {
               </TableHeader>
 
               <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {currentData.map((account) => (
-                  <TableRow key={account.id} className="">
-                    <TableCell className="py-3">
-                      <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                        {account.name}
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      {account.balance}
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      {account.currency}
-                    </TableCell>
-                    <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                      {account.createdAt}
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <button
-                        onClick={() => handleEditAccount(account)}
-                        className="text-brand-500 hover:text-brand-600 text-sm font-medium"
-                      >
-                        Edit
-                      </button>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center">
+                      <p className="text-gray-500 dark:text-gray-400">Loading accounts...</p>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : currentData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center">
+                      <p className="text-gray-500 dark:text-gray-400">No accounts found</p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  currentData.map((account) => (
+                    <TableRow key={account.id} className="">
+                      <TableCell className="py-3">
+                        <button
+                          onClick={() => navigate(`/account/${account.accountHash}`)}
+                          className="font-medium text-gray-800 text-theme-sm dark:text-white/90 hover:text-brand-500 dark:hover:text-brand-400 text-left"
+                        >
+                          {account.name}
+                        </button>
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        {account.initial_balance}
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        {account.balance}
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        {account.currency}
+                      </TableCell>
+                      <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                        {account.createdAt}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <button
+                          onClick={() => handleEditAccount(account)}
+                          className="text-brand-500 hover:text-brand-600 text-sm font-medium"
+                        >
+                          Edit
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -398,6 +482,53 @@ export default function Accounts() {
           </div>
         </div>
       </div>
+
+      {/* Filter Modal */}
+      {isFilterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                Filter Accounts
+              </h3>
+              <button
+                onClick={handleCloseFilterModal}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 4L16 16M4 16L16 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={filterData.name}
+                  onChange={(e) => setFilterData({ ...filterData, name: e.target.value })}
+                  placeholder="Search by name..."
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={handleClearFilter}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+              >
+                Clear
+              </button>
+              <button
+                onClick={handleApplyFilter}
+                className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Account Modal */}
       {isModalOpen && (
@@ -464,11 +595,24 @@ export default function Accounts() {
                   <input
                     type="number"
                     step="0.01"
-                    value={formData.balance}
-                    onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
+                    value={formData.initial_balance}
+                    onChange={(e) => setFormData({ ...formData, initial_balance: e.target.value })}
                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Actual Balance</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.balance}
+                    readOnly
+                    className="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-600 dark:text-gray-400 cursor-not-allowed"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Calculated from initial balance and transactions
+                  </p>
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
