@@ -43,6 +43,8 @@ export interface CreateTransaction {
 export interface TransactionFilters {
   start_date?: string;
   end_date?: string;
+  description?: string;
+  search?: string;
   type?: 'income' | 'expense' | 'transfer';
   account_id?: number;
   category_id?: number;
@@ -62,7 +64,7 @@ export interface PaginatedResponse<T> {
 }
 
 export const transactionService = {
-  getAll: async (filters?: TransactionFilters): Promise<PaginatedResponse<Transaction>> => {
+  getAll: async (filters?: TransactionFilters, signal?: AbortSignal): Promise<PaginatedResponse<Transaction>> => {
     const params = new URLSearchParams();
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
@@ -75,7 +77,7 @@ export const transactionService = {
         }
       });
     }
-    const response = await api.get('/transactions', { params });
+    const response = await api.get('/transactions', { params, signal });
     return response.data;
   },
 

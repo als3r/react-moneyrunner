@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Account } from "../services/accountService";
 
 interface TransactionHeaderProps {
@@ -10,6 +11,9 @@ interface TransactionHeaderProps {
   onAccountChange?: (accountId: string) => void;
   hasActiveFilters?: boolean;
   showExport?: boolean;
+  searchTerm?: string;
+  onSearchChange?: (term: string) => void;
+  onSearchSubmit?: () => void;
 }
 
 export default function TransactionHeader({
@@ -22,7 +26,32 @@ export default function TransactionHeader({
   onAccountChange,
   hasActiveFilters = false,
   showExport = true,
+  searchTerm = "",
+  onSearchChange,
+  onSearchSubmit,
 }: TransactionHeaderProps) {
+  const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
+
+  useEffect(() => {
+    setLocalSearchTerm(searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (onSearchChange) {
+        onSearchChange(localSearchTerm);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [localSearchTerm, onSearchChange]);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && onSearchSubmit) {
+      onSearchSubmit();
+    }
+  };
+
   return (
     <div className="flex items-center gap-3">
       {showAccountFilter && (
@@ -38,6 +67,16 @@ export default function TransactionHeader({
             </option>
           ))}
         </select>
+      )}
+      {onSearchChange && (
+        <input
+          type="text"
+          value={localSearchTerm}
+          onChange={(e) => setLocalSearchTerm(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
+          placeholder="Search: text, >100, <100, >=100, <=100, >2024-01-01, >100 food, or >2024-01-01 >100 (Press Enter)"
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 w-96"
+        />
       )}
       {hasActiveFilters && onClearFilters && (
         <button
@@ -90,7 +129,7 @@ export default function TransactionHeader({
       </button>
       <button
         onClick={onAddClick}
-        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
       >
         <svg
           className="stroke-current fill-white dark:fill-gray-800"
@@ -108,7 +147,7 @@ export default function TransactionHeader({
             strokeLinejoin="round"
           />
         </svg>
-        Add Transaction
+        Add
       </button>
       {showExport && (
         <button className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200">

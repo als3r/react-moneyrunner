@@ -52,6 +52,11 @@ const navItems: NavItem[] = [
     path: "/currencies",
   },
   {
+    icon: <ListIcon />,
+    name: "Import Presets",
+    path: "/import-presets",
+  },
+  {
     icon: <GridIcon />,
     name: "Dashboard",
     subItems: [{ name: "Ecommerce", path: "/", pro: false }],

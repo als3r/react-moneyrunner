@@ -37,7 +37,7 @@ export default function RecentOrders() {
       const displayData: DisplayTransaction[] = response.data.map((t: Transaction) => ({
         id: t.id,
         description: t.description,
-        category: t.category.name,
+        category: t.category?.name || 'No category',
         account: t.account.name,
         amount: `${t.account.currency.symbol}${Number(t.amount).toFixed(2)}`,
         tags: t.tags.map(tag => tag.name),

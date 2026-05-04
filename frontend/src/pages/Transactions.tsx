@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.css";
 import PageMeta from "../components/common/PageMeta";
-import TransactionTable, { Transaction } from "../components/TransactionTable";
+import TransactionTable from "../components/TransactionTable";
 import TransactionHeader from "../components/TransactionHeader";
+import Pagination from "../components/Pagination";
 import { transactionService, TransactionFilters, CreateTransaction } from "../services/transactionService";
 import { accountService, Account } from "../services/accountService";
 import { categoryService, Category } from "../services/categoryService";
@@ -54,6 +55,7 @@ export default function Transactions() {
     tag_ids: [] as number[],
     type: '' as 'income' | 'expense' | 'transfer' | '',
   });
+  const [searchTerm, setSearchTerm] = useState('');
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -61,8 +63,19 @@ export default function Transactions() {
   const endDatePickerRef = useRef<flatpickr.Instance | null>(null);
   const transactionDateRef = useRef<HTMLInputElement>(null);
   const transactionDatePickerRef = useRef<flatpickr.Instance | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchTransactions = useCallback(async (accountId?: string) => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       setLoading(true);
       setError(null);
@@ -75,6 +88,8 @@ export default function Transactions() {
       // Apply filters from appliedFilters
       if (appliedFilters.start_date) filters.start_date = appliedFilters.start_date;
       if (appliedFilters.end_date) filters.end_date = appliedFilters.end_date;
+      if (appliedFilters.description) filters.description = appliedFilters.description;
+      if (searchTerm) filters.search = searchTerm;
       if (accountId !== undefined) {
         filters.account_id = accountId ? parseInt(accountId) : undefined;
       } else if (appliedFilters.account_id) {
@@ -84,13 +99,13 @@ export default function Transactions() {
       if (appliedFilters.tag_ids.length > 0) filters.tag_ids = appliedFilters.tag_ids;
       if (appliedFilters.type) filters.type = appliedFilters.type;
 
-      const response = await transactionService.getAll(filters);
-      
+      const response = await transactionService.getAll(filters, abortController.signal);
+
       const displayData: Transaction[] = response.data.map((t) => ({
         id: t.id,
         description: t.description,
-        category: t.category.name,
-        categoryId: t.category.id,
+        category: t.category?.name || 'No category',
+        categoryId: t.category?.id || 0,
         account: t.account.name,
         accountId: t.account.id,
         amount: `${t.account.currency.symbol}${Number(t.amount).toFixed(2)}`,
@@ -99,16 +114,19 @@ export default function Transactions() {
         date: t.date.split('T')[0],
         type: t.type,
       }));
-      
+
       setTransactions(displayData);
       setTotalPages(response.meta.last_page);
-    } catch (err) {
-      setError('Failed to load transactions');
-      console.error('Error fetching transactions:', err);
+    } catch (err: any) {
+      if (err.name !== 'AbortError' && err.code !== 'ERR_CANCELED') {
+        setError('Failed to load transactions');
+        console.error('Error fetching transactions:', err);
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
-  }, [currentPage, itemsPerPage, appliedFilters]);
+  }, [currentPage, itemsPerPage, appliedFilters, searchTerm]);
 
   useEffect(() => {
     fetchTransactions();
@@ -168,6 +186,7 @@ export default function Transactions() {
       tag_ids: [],
       type: '',
     });
+    setSearchTerm('');
     setCurrentPage(1);
   };
 
@@ -333,15 +352,20 @@ export default function Transactions() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      const transactionData: CreateTransaction = {
+      const transactionData: any = {
         account_id: parseInt(formData.account_id),
-        category_id: parseInt(formData.category_id),
         type: formData.type,
         description: formData.description,
         amount: parseFloat(formData.amount),
         date: formData.date,
         tag_ids: formData.tag_ids,
       };
+      const categoryId = parseInt(formData.category_id);
+      if (categoryId && categoryId > 0) {
+        transactionData.category_id = categoryId;
+      } else {
+        transactionData.category_id = null;
+      }
       if (editingId) {
         await transactionService.update(editingId, transactionData);
       } else {
@@ -401,6 +425,9 @@ export default function Transactions() {
             }}
             hasActiveFilters={!!(appliedFilters.start_date || appliedFilters.end_date || appliedFilters.description || appliedFilters.account_id || appliedFilters.category_id || appliedFilters.tag_ids.length > 0 || appliedFilters.type)}
             showExport={true}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onSearchSubmit={() => setCurrentPage(1)}
           />
         </div>
 
@@ -444,35 +471,11 @@ export default function Transactions() {
               </select>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-            >
-              Previous
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                onClick={() => handlePageChange(page)}
-                className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium shadow-theme-xs ${
-                  currentPage === page
-                    ? "border-brand-500 bg-brand-500 text-white dark:border-brand-400 dark:bg-brand-400"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-            >
-              Next
-            </button>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
         </div>
       </div>
 
@@ -558,14 +561,13 @@ export default function Transactions() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category (optional)</label>
                   <select
                     value={formData.category_id}
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                    required
                   >
-                    <option value="">Select category</option>
+                    <option value="">No category</option>
                     {categories.map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.name}

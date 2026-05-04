@@ -24,7 +24,7 @@ export default function SignInForm() {
 
     try {
       await login(email, password);
-      navigate("/");
+      navigate("/accounts");
     } catch (err: any) {
       setError(err.response?.data?.message || "Login failed. Please check your credentials.");
     } finally {

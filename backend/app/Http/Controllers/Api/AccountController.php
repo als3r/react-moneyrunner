@@ -187,6 +187,142 @@ class AccountController extends Controller
         $query = $account->transactions()
             ->with(['category', 'tags']);
 
+        // Filter by date range
+        if ($request->has('start_date')) {
+            $query->whereDate('date', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->whereDate('date', '<=', $request->end_date);
+        }
+
+        // Filter by type
+        if ($request->has('type')) {
+            $query->where('type', $request->type);
+        }
+
+        // Filter by category
+        if ($request->has('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        // Filter by tags
+        if ($request->has('tag_ids')) {
+            $tagIds = explode(',', $request->tag_ids);
+            $query->whereHas('tags', function ($q) use ($tagIds) {
+                $q->whereIn('tags.id', $tagIds);
+            });
+        }
+
+        // Filter by description
+        if ($request->has('description')) {
+            $query->where('description', 'like', '%' . $request->description . '%');
+        }
+
+        // Search by description, amount, date, tag, or category
+        if ($request->has('search')) {
+            $searchTerm = $request->search;
+            $query->where(function ($q) use ($searchTerm) {
+                // Check for amount comparison operators
+                if (preg_match('/^(>=|<=|>|<)(\d+\.?\d*)$/', $searchTerm, $matches)) {
+                    $operator = $matches[1];
+                    $amount = floatval($matches[2]);
+                    $q->where('amount', $operator, $amount);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})$/', $searchTerm, $matches)) {
+                    // Date comparison operators
+                    $operator = $matches[1];
+                    $date = $matches[2];
+                    $q->whereDate('date', $operator, $date);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d+\.?\d*)$/', $searchTerm, $matches)) {
+                    // Combined search: date + date + amount
+                    $date1Operator = $matches[1];
+                    $date1 = $matches[2];
+                    $date2Operator = $matches[3];
+                    $date2 = $matches[4];
+                    $amountOperator = $matches[5];
+                    $amount = floatval($matches[6]);
+                    $q->whereDate('date', $date1Operator, $date1)
+                      ->whereDate('date', $date2Operator, $date2)
+                      ->where('amount', $amountOperator, $amount);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d{4}-\d{2}-\d{2})$/', $searchTerm, $matches)) {
+                    // Combined search: date + date
+                    $date1Operator = $matches[1];
+                    $date1 = $matches[2];
+                    $date2Operator = $matches[3];
+                    $date2 = $matches[4];
+                    $q->whereDate('date', $date1Operator, $date1)
+                      ->whereDate('date', $date2Operator, $date2);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d+\.?\d*)\s+(>=|<=|>|<)(\d{4}-\d{2}-\d{2})$/', $searchTerm, $matches)) {
+                    // Combined search: date + amount + date
+                    $date1Operator = $matches[1];
+                    $date1 = $matches[2];
+                    $amountOperator = $matches[3];
+                    $amount = floatval($matches[4]);
+                    $date2Operator = $matches[5];
+                    $date2 = $matches[6];
+                    $q->whereDate('date', $date1Operator, $date1)
+                      ->where('amount', $amountOperator, $amount)
+                      ->whereDate('date', $date2Operator, $date2);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d+\.?\d*)$/', $searchTerm, $matches)) {
+                    // Combined search: date operator + amount operator
+                    $dateOperator = $matches[1];
+                    $date = $matches[2];
+                    $amountOperator = $matches[3];
+                    $amount = floatval($matches[4]);
+                    $q->whereDate('date', $dateOperator, $date)
+                      ->where('amount', $amountOperator, $amount);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d+\.?\d*)\s+(>=|<=|>|<)(\d{4}-\d{2}-\d{2})$/', $searchTerm, $matches)) {
+                    // Combined search: amount operator + date operator
+                    $amountOperator = $matches[1];
+                    $amount = floatval($matches[2]);
+                    $dateOperator = $matches[3];
+                    $date = $matches[4];
+                    $q->where('amount', $amountOperator, $amount)
+                      ->whereDate('date', $dateOperator, $date);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d+\.?\d*)\s+(.*)$/', $searchTerm, $matches)) {
+                    // Combined search: operator + amount + text
+                    $operator = $matches[1];
+                    $amount = floatval($matches[2]);
+                    $textSearch = trim($matches[3]);
+                    $q->where('amount', $operator, $amount)
+                      ->where(function ($subQ) use ($textSearch) {
+                          $subQ->where('description', 'like', '%' . $textSearch . '%')
+                            ->orWhereHas('category', function ($catQ) use ($textSearch) {
+                                $catQ->where('name', 'like', '%' . $textSearch . '%');
+                            })
+                            ->orWhereHas('tags', function ($tagQ) use ($textSearch) {
+                                $tagQ->where('name', 'like', '%' . $textSearch . '%');
+                            });
+                      });
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(.*)$/', $searchTerm, $matches)) {
+                    // Combined search: operator + date + text
+                    $operator = $matches[1];
+                    $date = $matches[2];
+                    $textSearch = trim($matches[3]);
+                    $q->whereDate('date', $operator, $date)
+                      ->where(function ($subQ) use ($textSearch) {
+                          $subQ->where('description', 'like', '%' . $textSearch . '%')
+                            ->orWhereHas('category', function ($catQ) use ($textSearch) {
+                                $catQ->where('name', 'like', '%' . $textSearch . '%');
+                            })
+                            ->orWhereHas('tags', function ($tagQ) use ($textSearch) {
+                                $tagQ->where('name', 'like', '%' . $textSearch . '%');
+                            });
+                      });
+                } else {
+                    // Regular text search
+                    $q->where('description', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('amount', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('date', 'like', '%' . $searchTerm . '%')
+                      ->orWhereHas('category', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', '%' . $searchTerm . '%');
+                      })
+                      ->orWhereHas('tags', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', '%' . $searchTerm . '%');
+                      });
+                }
+            });
+        }
+
         // Pagination
         $perPage = $request->input('per_page', 50);
         $page = $request->input('page', 1);

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\ImportPresetController;
 
 /*
 |--------------------------------------------------------------------------
@@ -52,4 +53,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Transaction routes
     Route::apiResource('transactions', TransactionController::class);
     Route::get('transactions/reports', [TransactionController::class, 'reports']);
+    Route::post('transactions/import', [TransactionController::class, 'import']);
+
+    // Import preset routes
+    Route::apiResource('import-presets', ImportPresetController::class);
 });

@@ -48,6 +48,111 @@ class TransactionController extends Controller
             });
         }
 
+        // Search by description, amount, date, tag, or category
+        if ($request->has('search')) {
+            $searchTerm = $request->search;
+            $query->where(function ($q) use ($searchTerm) {
+                // Check for amount comparison operators
+                if (preg_match('/^(>=|<=|>|<)(\d+\.?\d*)$/', $searchTerm, $matches)) {
+                    $operator = $matches[1];
+                    $amount = floatval($matches[2]);
+                    $q->where('amount', $operator, $amount);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})$/', $searchTerm, $matches)) {
+                    // Date comparison operators
+                    $operator = $matches[1];
+                    $date = $matches[2];
+                    $q->whereDate('date', $operator, $date);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d+\.?\d*)$/', $searchTerm, $matches)) {
+                    // Combined search: date + date + amount
+                    $date1Operator = $matches[1];
+                    $date1 = $matches[2];
+                    $date2Operator = $matches[3];
+                    $date2 = $matches[4];
+                    $amountOperator = $matches[5];
+                    $amount = floatval($matches[6]);
+                    $q->whereDate('date', $date1Operator, $date1)
+                      ->whereDate('date', $date2Operator, $date2)
+                      ->where('amount', $amountOperator, $amount);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d{4}-\d{2}-\d{2})$/', $searchTerm, $matches)) {
+                    // Combined search: date + date
+                    $date1Operator = $matches[1];
+                    $date1 = $matches[2];
+                    $date2Operator = $matches[3];
+                    $date2 = $matches[4];
+                    $q->whereDate('date', $date1Operator, $date1)
+                      ->whereDate('date', $date2Operator, $date2);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d+\.?\d*)\s+(>=|<=|>|<)(\d{4}-\d{2}-\d{2})$/', $searchTerm, $matches)) {
+                    // Combined search: date + amount + date
+                    $date1Operator = $matches[1];
+                    $date1 = $matches[2];
+                    $amountOperator = $matches[3];
+                    $amount = floatval($matches[4]);
+                    $date2Operator = $matches[5];
+                    $date2 = $matches[6];
+                    $q->whereDate('date', $date1Operator, $date1)
+                      ->where('amount', $amountOperator, $amount)
+                      ->whereDate('date', $date2Operator, $date2);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(>=|<=|>|<)(\d+\.?\d*)$/', $searchTerm, $matches)) {
+                    // Combined search: date operator + amount operator
+                    $dateOperator = $matches[1];
+                    $date = $matches[2];
+                    $amountOperator = $matches[3];
+                    $amount = floatval($matches[4]);
+                    $q->whereDate('date', $dateOperator, $date)
+                      ->where('amount', $amountOperator, $amount);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d+\.?\d*)\s+(>=|<=|>|<)(\d{4}-\d{2}-\d{2})$/', $searchTerm, $matches)) {
+                    // Combined search: amount operator + date operator
+                    $amountOperator = $matches[1];
+                    $amount = floatval($matches[2]);
+                    $dateOperator = $matches[3];
+                    $date = $matches[4];
+                    $q->where('amount', $amountOperator, $amount)
+                      ->whereDate('date', $dateOperator, $date);
+                } elseif (preg_match('/^(>=|<=|>|<)(\d+\.?\d*)\s+(.*)$/', $searchTerm, $matches)) {
+                    // Combined search: operator + amount + text
+                    $operator = $matches[1];
+                    $amount = floatval($matches[2]);
+                    $textSearch = trim($matches[3]);
+                    $q->where('amount', $operator, $amount)
+                      ->where(function ($subQ) use ($textSearch) {
+                          $subQ->where('description', 'like', '%' . $textSearch . '%')
+                            ->orWhereHas('category', function ($catQ) use ($textSearch) {
+                                $catQ->where('name', 'like', '%' . $textSearch . '%');
+                            })
+                            ->orWhereHas('tags', function ($tagQ) use ($textSearch) {
+                                $tagQ->where('name', 'like', '%' . $textSearch . '%');
+                            });
+                      });
+                } elseif (preg_match('/^(>=|<=|>|<)(\d{4}-\d{2}-\d{2})\s+(.*)$/', $searchTerm, $matches)) {
+                    // Combined search: operator + date + text
+                    $operator = $matches[1];
+                    $date = $matches[2];
+                    $textSearch = trim($matches[3]);
+                    $q->whereDate('date', $operator, $date)
+                      ->where(function ($subQ) use ($textSearch) {
+                          $subQ->where('description', 'like', '%' . $textSearch . '%')
+                            ->orWhereHas('category', function ($catQ) use ($textSearch) {
+                                $catQ->where('name', 'like', '%' . $textSearch . '%');
+                            })
+                            ->orWhereHas('tags', function ($tagQ) use ($textSearch) {
+                                $tagQ->where('name', 'like', '%' . $textSearch . '%');
+                            });
+                      });
+                } else {
+                    // Regular text search
+                    $q->where('description', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('amount', 'like', '%' . $searchTerm . '%')
+                      ->orWhere('date', 'like', '%' . $searchTerm . '%')
+                      ->orWhereHas('category', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', '%' . $searchTerm . '%');
+                      })
+                      ->orWhereHas('tags', function ($q) use ($searchTerm) {
+                          $q->where('name', 'like', '%' . $searchTerm . '%');
+                      });
+                }
+            });
+        }
+
         // Pagination
         $perPage = $request->input('per_page', 50);
         $page = $request->input('page', 1);
@@ -73,7 +178,7 @@ class TransactionController extends Controller
     {
         $validated = $request->validate([
             'account_id' => 'required|exists:accounts,id',
-            'category_id' => 'required|exists:categories,id',
+            'category_id' => 'nullable|exists:categories,id',
             'type' => 'required|in:income,expense,transfer',
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
@@ -138,7 +243,7 @@ class TransactionController extends Controller
 
         $validated = $request->validate([
             'account_id' => 'sometimes|exists:accounts,id',
-            'category_id' => 'sometimes|exists:categories,id',
+            'category_id' => 'sometimes|nullable|exists:categories,id',
             'type' => 'sometimes|in:income,expense,transfer',
             'description' => 'sometimes|string|max:255',
             'amount' => 'sometimes|numeric|min:0',
@@ -296,5 +401,160 @@ class TransactionController extends Controller
             }),
             'transactions' => $transactions,
         ]);
+    }
+
+    /**
+     * Import transactions from CSV file
+     */
+    public function import(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:csv,txt',
+            'account_id' => 'required|exists:accounts,id',
+            'preset_id' => 'required|exists:transaction_import_presets,id',
+        ]);
+
+        // Validate account belongs to user
+        $account = \App\Models\Account::find($validated['account_id']);
+        if ($account->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Invalid account'], 422);
+        }
+
+        // Validate preset belongs to user
+        $preset = \App\Models\ImportPreset::find($validated['preset_id']);
+        if ($preset->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Invalid preset'], 422);
+        }
+
+        $file = $request->file('file');
+        $path = $file->getPathname();
+
+        $csv = array_map('str_getcsv', file($path));
+        
+        $mapping = $preset->column_mapping;
+        $dateFormat = $preset->date_format;
+        $skipHeader = $preset->skip_header_row;
+
+        $imported = 0;
+        $errors = [];
+
+        $startIndex = $skipHeader ? 1 : 0;
+
+        for ($i = $startIndex; $i < count($csv); $i++) {
+            $row = $csv[$i];
+            
+            try {
+                // Map columns based on preset
+                $description = $this->getColumnValue($row, $mapping, 'description_column');
+                $date = $this->getColumnValue($row, $mapping, 'date_column');
+                $type = $this->getColumnValue($row, $mapping, 'type_column') ?? 'auto';
+                
+                // Handle separate debit/credit columns or single amount column
+                $debitColumn = $this->getColumnValue($row, $mapping, 'debit_column');
+                $creditColumn = $this->getColumnValue($row, $mapping, 'credit_column');
+                $amountColumn = $this->getColumnValue($row, $mapping, 'amount_column');
+                
+                $amount = 0;
+                if (!empty($debitColumn) || !empty($creditColumn)) {
+                    // Use separate debit/credit columns
+                    $debit = $this->parseAmount($debitColumn ?? 0, $preset->amount_format);
+                    $credit = $this->parseAmount($creditColumn ?? 0, $preset->amount_format);
+                    
+                    if ($debit > 0) {
+                        $amount = $debit;
+                        $type = 'expense';
+                    } elseif ($credit > 0) {
+                        $amount = $credit;
+                        $type = 'income';
+                    } else {
+                        $errors[] = "Row " . ($i + 1) . ": No amount in debit or credit column";
+                        continue;
+                    }
+                } elseif (!empty($amountColumn)) {
+                    // Use single amount column
+                    $amount = $this->parseAmount($amountColumn, $preset->amount_format);
+                    
+                    // Determine type if not specified (negative amounts are expenses)
+                    if ($type === 'auto') {
+                        $type = $amount < 0 ? 'expense' : 'income';
+                        $amount = abs($amount);
+                    }
+                } else {
+                    $errors[] = "Row " . ($i + 1) . ": No amount column found";
+                    continue;
+                }
+                
+                // Parse date
+                $date = $this->parseDate($date, $dateFormat);
+
+                // Validate required fields
+                if (empty($description) || empty($amount) || empty($date)) {
+                    $errors[] = "Row " . ($i + 1) . ": Missing required fields";
+                    continue;
+                }
+
+                // Create transaction
+                $transaction = $request->user()->transactions()->create([
+                    'account_id' => $validated['account_id'],
+                    'category_id' => null,
+                    'type' => $type,
+                    'description' => $description,
+                    'amount' => $amount,
+                    'date' => $date,
+                ]);
+
+                // Update account balance
+                if ($type === 'income') {
+                    $account->balance += $amount;
+                } elseif ($type === 'expense') {
+                    $account->balance -= $amount;
+                }
+                $account->save();
+
+                $imported++;
+            } catch (\Exception $e) {
+                $errors[] = "Row " . ($i + 1) . ": " . $e->getMessage();
+            }
+        }
+
+        return response()->json([
+            'message' => 'Import completed',
+            'imported' => $imported,
+            'errors' => $errors,
+        ]);
+    }
+
+    private function getColumnValue($row, $mapping, $key)
+    {
+        $columnIndex = $mapping[$key] ?? null;
+        if ($columnIndex === null) {
+            return null;
+        }
+        return $row[$columnIndex] ?? null;
+    }
+
+    private function parseAmount($amount, $format)
+    {
+        if ($format === 'decimal') {
+            return floatval(str_replace([',', '$'], '', $amount));
+        }
+        return floatval($amount);
+    }
+
+    private function parseDate($date, $format)
+    {
+        $dateTime = \DateTime::createFromFormat($format, $date);
+        if ($dateTime === false) {
+            // Try common formats
+            $formats = ['Y-m-d', 'm/d/Y', 'd/m/Y', 'Y/m/d'];
+            foreach ($formats as $fmt) {
+                $dateTime = \DateTime::createFromFormat($fmt, $date);
+                if ($dateTime !== false) {
+                    return $dateTime->format('Y-m-d');
+                }
+            }
+            throw new \Exception("Invalid date format: $date");
+        }
+        return $dateTime->format('Y-m-d');
     }
 }

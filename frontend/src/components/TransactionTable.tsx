@@ -53,7 +53,7 @@ export default function TransactionTable({
               <TableRow>
                 <TableCell
                   isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 w-[35%] max-w-[35%]"
                 >
                   Transactions
                 </TableCell>
@@ -121,7 +121,7 @@ export default function TransactionTable({
               <TableRow>
                 <TableCell
                   isHeader
-                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                  className="py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 w-[35%] max-w-[35%]"
                 >
                   Transactions
                 </TableCell>
@@ -238,8 +238,8 @@ export default function TransactionTable({
           <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
             {transactions.map((transaction) => (
               <TableRow key={transaction.id} className="">
-                <TableCell className="py-3">
-                  <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                <TableCell className="py-3 w-[35%] max-w-[35%]">
+                  <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90 break-words whitespace-normal">
                     {transaction.description}
                   </p>
                 </TableCell>
@@ -267,8 +267,18 @@ export default function TransactionTable({
                     transaction.category
                   )}
                 </TableCell>
-                <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                  {transaction.amount}
+                <TableCell className="py-3 text-theme-sm">
+                  <span
+                    className={
+                      transaction.type === 'income'
+                        ? 'text-green-600 font-bold dark:text-green-400'
+                        : transaction.type === 'expense'
+                        ? 'text-amber-800 font-bold dark:text-amber-600'
+                        : 'text-gray-500 dark:text-gray-400'
+                    }
+                  >
+                    {transaction.amount}
+                  </span>
                 </TableCell>
                 <TableCell className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
                   <div className="flex gap-1 flex-wrap">

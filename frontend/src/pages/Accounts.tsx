@@ -8,8 +8,11 @@ import {
   TableRow,
 } from "../components/ui/table";
 import PageMeta from "../components/common/PageMeta";
+import Pagination from "../components/Pagination";
 import { accountService, Account, AccountFilters, CreateAccount } from "../services/accountService";
 import { currencyService, Currency } from "../services/currencyService";
+import importPresetService, { ImportPreset } from "../services/importPresetService";
+import axios from 'axios';
 
 interface DisplayAccount {
   id: number;
@@ -35,9 +38,19 @@ export default function Accounts() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [importPresets, setImportPresets] = useState<ImportPreset[]>([]);
+  const [importFormData, setImportFormData] = useState({
+    account_id: '',
+    preset_id: '',
+    file: null as File | null,
+  });
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; errors: string[] } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     type: 'checking',
@@ -179,6 +192,73 @@ export default function Accounts() {
     setIsFilterModalOpen(false);
   };
 
+  const handleOpenImportModal = async () => {
+    setImportError(null);
+    setImportResult(null);
+    setImportFormData({
+      account_id: '',
+      preset_id: '',
+      file: null,
+    });
+    setIsImportModalOpen(true);
+
+    // Fetch import presets in background
+    try {
+      const presets = await importPresetService.getAll();
+      setImportPresets(presets);
+    } catch (err) {
+      console.error('Error fetching import presets:', err);
+    }
+  };
+
+  const handleCloseImportModal = () => {
+    setIsImportModalOpen(false);
+    setImportError(null);
+    setImportResult(null);
+    setImportFormData({
+      account_id: '',
+      preset_id: '',
+      file: null,
+    });
+  };
+
+  const handleImportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setImportError(null);
+    setImportResult(null);
+
+    if (!importFormData.file || !importFormData.account_id || !importFormData.preset_id) {
+      setImportError('Please fill in all fields');
+      return;
+    }
+
+    setImportLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', importFormData.file);
+      formData.append('account_id', importFormData.account_id);
+      formData.append('preset_id', importFormData.preset_id);
+
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      const token = localStorage.getItem('token');
+
+      const response = await axios.post(`${API_URL}/transactions/import`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setImportResult(response.data);
+      fetchAccounts();
+    } catch (err: any) {
+      setImportError(err.response?.data?.message || 'Import failed. Please try again.');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const handleApplyFilter = () => {
     setAppliedFilters({ ...filterData });
     handleCloseFilterModal();
@@ -284,6 +364,42 @@ export default function Accounts() {
                 />
               </svg>
               Add Account
+            </button>
+            <button
+              onClick={handleOpenImportModal}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-theme-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+            >
+              <svg
+                className="stroke-current fill-white dark:fill-gray-800"
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 17V3H17V17H3Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M7 8H13"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M7 12H11"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Import
             </button>
             <button
               onClick={handleOpenFilterModal}
@@ -450,35 +566,11 @@ export default function Accounts() {
                 </select>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => handlePageChange(page)}
-                  className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium shadow-theme-xs ${
-                    currentPage === page
-                      ? "border-brand-500 bg-brand-500 text-white dark:border-brand-400 dark:bg-brand-400"
-                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
-              >
-                Next
-              </button>
-            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
           </div>
         </div>
       </div>
@@ -526,6 +618,109 @@ export default function Accounts() {
                 Apply Filters
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Transactions Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                Import Transactions
+              </h3>
+              <button
+                onClick={handleCloseImportModal}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 4L16 16M4 16L16 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleImportSubmit}>
+              <div className="space-y-4">
+                {importError && (
+                  <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg dark:bg-red-900/20 dark:text-red-400">
+                    {importError}
+                  </div>
+                )}
+                {importResult && (
+                  <div className="p-3 text-sm text-green-600 bg-green-50 rounded-lg dark:bg-green-900/20 dark:text-green-400">
+                    Successfully imported {importResult.imported} transactions
+                    {importResult.errors.length > 0 && (
+                      <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                        {importResult.errors.length} errors occurred
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account</label>
+                  <select
+                    value={importFormData.account_id}
+                    onChange={(e) => setImportFormData({ ...importFormData, account_id: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  >
+                    <option value="">Select account</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} ({account.currency})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Import Preset</label>
+                  <select
+                    value={importFormData.preset_id}
+                    onChange={(e) => setImportFormData({ ...importFormData, preset_id: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  >
+                    <option value="">Select preset</option>
+                    {importPresets.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name} {preset.description && `- ${preset.description}`}
+                      </option>
+                    ))}
+                  </select>
+                  {importPresets.length === 0 && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      No presets available. Create one first to configure CSV column mapping.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CSV File</label>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setImportFormData({ ...importFormData, file: e.target.files?.[0] || null })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={handleCloseImportModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={importLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50"
+                >
+                  {importLoading ? 'Importing...' : 'Import'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

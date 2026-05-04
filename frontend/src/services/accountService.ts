@@ -21,6 +21,13 @@ export interface AccountFilters {
   page?: number;
   per_page?: number;
   name?: string;
+  start_date?: string;
+  end_date?: string;
+  description?: string;
+  search?: string;
+  type?: 'income' | 'expense' | 'transfer';
+  category_id?: number;
+  tag_ids?: number[];
 }
 
 export interface PaginatedResponse<T> {
@@ -74,7 +81,7 @@ export const accountService = {
     await api.delete(`/accounts/${id}`);
   },
 
-  getByHash: async (accountHash: string, filters?: AccountFilters): Promise<{
+  getByHash: async (accountHash: string, filters?: AccountFilters, signal?: AbortSignal): Promise<{
     account: Account;
     transactions: PaginatedResponse<{
       id: number;
@@ -100,7 +107,7 @@ export const accountService = {
         }
       });
     }
-    const response = await api.get(`/account/${accountHash}`, { params });
+    const response = await api.get(`/account/${accountHash}`, { params, signal });
     return response.data;
   },
 };

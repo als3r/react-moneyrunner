@@ -45,6 +45,11 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
     handleResize();
     window.addEventListener("resize", handleResize);
 
+    // Also check on mount to ensure mobile sidebar is closed on desktop
+    if (window.innerWidth >= 768) {
+      setIsMobileOpen(false);
+    }
+
     return () => {
       window.removeEventListener("resize", handleResize);
     };

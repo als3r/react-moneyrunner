@@ -24,6 +24,7 @@ import Tags from "./pages/Tags";
 import Accounts from "./pages/Accounts";
 import Currencies from "./pages/Currencies";
 import AccountDetail from "./pages/AccountDetail";
+import ImportPresets from "./pages/ImportPresets";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 export default function App() {
@@ -39,7 +40,7 @@ export default function App() {
 
           {/* Dashboard Layout - Protected */}
           <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-            <Route index element={<Home />} />
+            <Route index element={<Accounts />} />
             <Route path="dashboard" element={<Home />} />
 
             {/* Transactions */}
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="accounts" element={<Accounts />} />
             <Route path="account/:accountHash" element={<AccountDetail />} />
             <Route path="currencies" element={<Currencies />} />
+            <Route path="import-presets" element={<ImportPresets />} />
 
             {/* Others Page */}
             <Route path="/profile" element={<UserProfiles />} />
